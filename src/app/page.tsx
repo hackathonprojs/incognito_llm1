@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { useChat } from '@ai-sdk/react';
 import Web3 from 'web3';
-import { Search, Wallet as WalletIcon, Zap, ChevronDown } from 'lucide-react';
+import { Search, Wallet as WalletIcon, Zap, ChevronDown, X } from 'lucide-react';
 
 const MONAD_TESTNET_CHAIN_ID = 10143;
 const MONAD_TESTNET_RPC = 'https://testnet-rpc.monad.xyz';
@@ -19,6 +18,14 @@ const AVAILABLE_MODELS = [
   { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: 'Most capable' },
 ];
 
+// Toast notification interface
+interface Toast {
+  id: string;
+  type: 'success' | 'error' | 'info' | 'warning';
+  message: string;
+  details?: string;
+}
+
 export default function Home() {
   const [account, setAccount] = useState<string | null>(null);
   const [web3, setWeb3] = useState<Web3 | null>(null);
@@ -26,6 +33,21 @@ export default function Home() {
   const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash');
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle');
   const [lastTxHash, setLastTxHash] = useState<string | null>(null);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+
+  // Toast helper functions
+  const addToast = useCallback((type: Toast['type'], message: string, details?: string) => {
+    const id = Date.now().toString();
+    setToasts(prev => [...prev, { id, type, message, details }]);
+    // Auto-remove after 30 seconds
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 30000);
+  }, []);
+
+  const removeToast = useCallback((id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  }, []);
 
   // Connect wallet using Web3.js
   const connectWallet = async () => {
@@ -80,108 +102,204 @@ export default function Home() {
     }
   };
 
-  // Custom fetch wrapper to handle x402 402 Payment Required
-  const paymentFetch = useCallback(async (url: string, options?: RequestInit) => {
-    if (!web3 || !account) {
-      throw new Error('Wallet not connected');
-    }
+  // Manage input state manually (required in AI SDK v5)
+  const [inputValue, setInputValue] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-    setPaymentStatus('idle');
+  // Manual message management instead of useChat (for better x402 control)
+  const [messages, setMessages] = useState<Array<{
+    id: string;
+    role: 'user' | 'assistant';
+    content: string;
+  }>>([]);
 
-    // 1. Attempt the request
-    const response = await fetch(url, options);
+  const isLoading = isSubmitting;
 
-    // 2. If 402, handle payment
-    if (response.status === 402) {
-      setPaymentStatus('pending');
-      try {
-        // In a full implementation, we would parse the headers to get the price and address.
-        // For this specific backend, we know it requires 0.001 MON to the server wallet.
+  // Custom submit handler with logging
+  const handleFormSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!inputValue.trim()) return;
 
-        // NOTE: Ideally, the backend returns payment details in the body or headers.
-        // thirdweb's settlePayment returns specific JSON body.
-        const paymentInfo = await response.json();
-        // Expecting something like: { error: "Payment Required", ... } 
+    console.log('🔍 Search button clicked!', {
+      input: inputValue,
+      model: selectedModel,
+      account,
+      timestamp: new Date().toISOString(),
+    });
 
-        // We will manually send the transaction
-        // We need the server wallet address. Since we don't have it dynamically from the 402 response easily 
-        // (unless we inspect headers which might be opaque), we assume it's the one configured.
-        // BUT, wait, the user's snippet had 'payTo' in the backend. 
-        // The `settlePayment` response usually contains the target address if configured properly?
-        // Let's assume a hardcoded price and the server wallet from env (we'll need to expose it or trust the user configured it).
+    setIsSubmitting(true);
+    const currentInput = inputValue;
+    setInputValue(''); // Clear input immediately
 
-        // To make this robust without hardcoding too much:
-        // The error message from thirdweb usually says "Payment Required".
+    try {
+      // First, check if payment is required by making a preflight request
+      if (web3 && account) {
+        console.log('🔍 Checking if payment is required...');
 
-        // Hardcoding for the Monad Demo per instructions: 0.001 MON
-        const price = '0.001';
-
-        // Send transaction
-        const txHash = await new Promise<string>((resolve, reject) => {
-          web3.eth.sendTransaction({
-            from: account,
-            to: process.env.NEXT_PUBLIC_SERVER_WALLET_ADDRESS || "0xYourReceivingWalletAddress", // Needs to be public for client to know where to send? 
-            // Wait, usually the client knows. 
-            // Let's use a dummy address if env not set, OR rely on a new env var?
-            // The previous code had `createWallet` which implies the client logic handled it.
-            // Client needs to know who to pay.
-            // We will add NEXT_PUBLIC_SERVER_WALLET to .env.local
-            value: web3.utils.toWei(price, 'ether')
-          })
-            .on('transactionHash', (hash) => {
-              console.log("Tx Hash:", hash);
-            })
-            .on('receipt', (receipt) => {
-              resolve(receipt.transactionHash.toString()); // Convert to string just in case
-            })
-            .on('error', (error) => {
-              reject(error);
-            });
+        const preflightResponse = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: [{ role: 'user', parts: [{ type: 'text', text: currentInput }] }],
+            model: selectedModel
+          }),
         });
 
-        setLastTxHash(txHash);
+        // If 402, handle payment flow
+        if (preflightResponse.status === 402) {
+          console.log('💳 Payment required! Starting x402 flow...');
+          setPaymentStatus('pending');
+          addToast('info', 'Payment Required', 'Please confirm the transaction in MetaMask...');
 
-        // 3. Retry the request with proof
-        // thirdweb's `settlePayment` allows passing `paymentData` which can be the tx hash?
-        // "paymentData" in request.headers.get('x-payment')
-        // If the backend accepts the TX Hash as the paymentData, we are good.
-        // We need to verify if `settlePayment` accepts a raw hash. 
-        // Documentation says: "paymentData: The payment confirmation (e.g. transaction hash)."
+          const paymentInfo = await preflightResponse.json();
+          console.log('📋 x402 Payment Info:', paymentInfo);
 
-        const retryOptions = {
-          ...options,
-          headers: {
-            ...options?.headers,
-            'x-payment': txHash // Sending hash as proof
+          // Extract payment details
+          const accepts = paymentInfo.accepts || [];
+          const paymentOption = accepts[0];
+
+          if (!paymentOption) {
+            throw new Error('No payment options available');
           }
-        };
 
-        const retryResponse = await fetch(url, retryOptions);
+          const payTo = paymentOption.payTo;
+          console.log('💰 Payment to:', payTo);
 
-        if (retryResponse.ok) {
+          addToast('warning', 'Confirm in MetaMask', `Sending 0.001 MON to ${payTo?.slice(0, 10)}...`);
+
+          // Send the native MON transaction via MetaMask
+          const paymentAmount = web3.utils.toWei('0.001', 'ether');
+
+          const txHash = await new Promise<string>((resolve, reject) => {
+            console.log('📤 Sending transaction...');
+            web3.eth.sendTransaction({
+              from: account,
+              to: payTo,
+              value: paymentAmount
+            })
+              .on('transactionHash', (hash) => {
+                console.log('📝 Transaction Hash:', hash);
+                addToast('info', 'Transaction Submitted', `Tx: ${hash.slice(0, 20)}...`);
+              })
+              .on('receipt', (receipt) => {
+                console.log('✅ Transaction confirmed:', receipt);
+                resolve(receipt.transactionHash.toString());
+              })
+              .on('error', (error: any) => {
+                console.error('❌ Transaction failed:', error);
+                reject(error);
+              });
+          });
+
+          setLastTxHash(txHash);
           setPaymentStatus('success');
-          return retryResponse;
-        } else {
-          setPaymentStatus('error');
-          throw new Error("Payment verification failed");
-        }
+          addToast('success', 'Payment Confirmed!', `Now fetching AI response...`);
 
-      } catch (err) {
-        console.error("Payment failed", err);
-        setPaymentStatus('error');
-        throw err;
+          // Store txHash for the fetch request
+          localStorage.setItem('x402_payment_hash', txHash);
+        }
+      }
+
+      // Add user message to state
+      const userMessageId = Date.now().toString();
+      setMessages(prev => [...prev, {
+        id: userMessageId,
+        role: 'user',
+        content: currentInput
+      }]);
+
+      // Make the actual chat request
+      const storedPaymentHash = localStorage.getItem('x402_payment_hash');
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (storedPaymentHash) {
+        headers['x-payment'] = storedPaymentHash;
+        localStorage.removeItem('x402_payment_hash');
+        console.log('📎 Attaching x-payment header:', storedPaymentHash);
+      }
+
+      const chatResponse = await fetch('/api/chat', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          messages: [...messages, { role: 'user', content: currentInput }],
+          model: selectedModel
+        }),
+      });
+
+      if (!chatResponse.ok) {
+        const errorText = await chatResponse.text();
+        throw new Error(`Chat request failed: ${chatResponse.status} - ${errorText}`);
+      }
+
+      // Create assistant message placeholder
+      const assistantMessageId = (Date.now() + 1).toString();
+      setMessages(prev => [...prev, {
+        id: assistantMessageId,
+        role: 'assistant',
+        content: ''
+      }]);
+
+      // Handle streaming response
+      const reader = chatResponse.body?.getReader();
+      const decoder = new TextDecoder();
+      let fullContent = '';
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          // Parse the streaming data - AI SDK sends data in a specific format
+          const lines = chunk.split('\n');
+
+          for (const line of lines) {
+            if (line.startsWith('0:')) {
+              // Text chunk from AI SDK format
+              try {
+                const textContent = JSON.parse(line.slice(2));
+                fullContent += textContent;
+
+                // Update the assistant message with accumulated content
+                setMessages(prev => prev.map(msg =>
+                  msg.id === assistantMessageId
+                    ? { ...msg, content: fullContent }
+                    : msg
+                ));
+              } catch {
+                // Not valid JSON, might be raw text
+                fullContent += line.slice(2);
+                setMessages(prev => prev.map(msg =>
+                  msg.id === assistantMessageId
+                    ? { ...msg, content: fullContent }
+                    : msg
+                ));
+              }
+            }
+          }
+        }
+      }
+
+      console.log('✅ Chat completed. Full response:', fullContent);
+      addToast('success', 'Response Received', 'AI response generated successfully!');
+      setIsSubmitting(false);
+
+    } catch (error: any) {
+      console.error('Failed to send message:', error);
+      setInputValue(currentInput); // Restore input on error
+      setIsSubmitting(false);
+
+      const errorMessage = error?.message || 'Unknown error';
+      if (errorMessage.includes('User denied') || errorMessage.includes('rejected')) {
+        addToast('warning', 'Transaction Cancelled', 'You rejected the transaction.');
+      } else {
+        addToast('error', 'Error', errorMessage);
       }
     }
-
-    return response;
-  }, [web3, account]);
-
-  // useChat hook with payment-wrapped fetch
-  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
-    api: '/api/chat',
-    body: { model: selectedModel },
-    fetch: (web3 && account) ? paymentFetch : undefined,
-  });
+  };
 
   return (
     <div className="min-h-screen bg-[#1a1a1a] text-white font-sans selection:bg-[#20b8cd] selection:text-white">
@@ -304,7 +422,7 @@ export default function Home() {
                   {message.role === 'user' ? 'You' : 'Gemini'}
                 </span>
               </div>
-              <div className="prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-[#111] prose-pre:border prose-pre:border-[#333]">
+              <div className="prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-[#111] prose-pre:border prose-pre:border-[#333] whitespace-pre-wrap">
                 {message.content}
               </div>
             </div>
@@ -326,19 +444,19 @@ export default function Home() {
 
       {/* Input Area */}
       <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-[#1a1a1a] via-[#1a1a1a] to-transparent z-20">
-        <form onSubmit={handleSubmit} className="max-w-4xl mx-auto relative group">
+        <form onSubmit={handleFormSubmit} className="max-w-4xl mx-auto relative group">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-[#20b8cd] transition-colors" />
           <input
             type="text"
-            value={input}
-            onChange={handleInputChange}
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
             placeholder={account ? "Ask anything..." : "Connect wallet to start..."}
             disabled={!account || isLoading}
             className="w-full bg-[#242424] border border-[#3a3a3a] rounded-xl pl-12 pr-32 py-4 text-lg focus:outline-none focus:border-[#20b8cd] focus:ring-1 focus:ring-[#20b8cd] transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed placeholder:text-gray-600"
           />
           <button
             type="submit"
-            disabled={!account || isLoading || !input?.trim()}
+            disabled={!account || isLoading || !inputValue?.trim()}
             className="absolute right-2 top-1/2 -translate-y-1/2 bg-[#20b8cd] hover:bg-[#1aa3b6] px-6 py-2 rounded-lg font-medium transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 text-black shadow-md"
           >
             {isLoading ? 'Thinking...' : 'Search'}
@@ -347,6 +465,39 @@ export default function Home() {
         <p className="text-center text-xs text-gray-500 mt-3">
           Each query costs 0.001 MON on Monad Testnet
         </p>
+      </div>
+
+      {/* Toast Notifications */}
+      <div className="fixed top-4 right-4 z-50 flex flex-col gap-3 max-w-md">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className={`p-4 rounded-xl border shadow-2xl backdrop-blur-md animate-in slide-in-from-right fade-in duration-300 flex items-start gap-3 ${toast.type === 'success' ? 'bg-green-500/20 border-green-500/40 text-green-300' :
+              toast.type === 'error' ? 'bg-red-500/20 border-red-500/40 text-red-300' :
+                toast.type === 'warning' ? 'bg-yellow-500/20 border-yellow-500/40 text-yellow-300' :
+                  'bg-blue-500/20 border-blue-500/40 text-blue-300'
+              }`}
+          >
+            <div className="flex-shrink-0 text-lg">
+              {toast.type === 'success' && '✓'}
+              {toast.type === 'error' && '✗'}
+              {toast.type === 'warning' && '⚠'}
+              {toast.type === 'info' && 'ℹ'}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-semibold text-sm">{toast.message}</div>
+              {toast.details && (
+                <div className="text-xs opacity-80 mt-1 break-words">{toast.details}</div>
+              )}
+            </div>
+            <button
+              onClick={() => removeToast(toast.id)}
+              className="flex-shrink-0 opacity-60 hover:opacity-100 transition-opacity p-1"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   );
