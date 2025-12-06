@@ -171,15 +171,15 @@ export async function POST(request: NextRequest) {
         });
 
         // Return streaming response with payment receipt
-        const response = result.toDataStreamResponse();
+        const response = result.toTextStreamResponse();
         response.headers.set('X-Payment-Receipt', JSON.stringify({ txHash: paymentData, verified: true }));
 
         return response;
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('Chat API error:', error);
         return NextResponse.json(
-            { error: 'Internal server error' },
+            { error: error?.message || 'Internal server error', details: JSON.stringify(error, Object.getOwnPropertyNames(error)) },
             { status: 500 }
         );
     }

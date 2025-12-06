@@ -252,34 +252,16 @@ export default function Home() {
           const { done, value } = await reader.read();
           if (done) break;
 
+          // toTextStreamResponse sends plain text chunks
           const chunk = decoder.decode(value, { stream: true });
-          // Parse the streaming data - AI SDK sends data in a specific format
-          const lines = chunk.split('\n');
+          fullContent += chunk;
 
-          for (const line of lines) {
-            if (line.startsWith('0:')) {
-              // Text chunk from AI SDK format
-              try {
-                const textContent = JSON.parse(line.slice(2));
-                fullContent += textContent;
-
-                // Update the assistant message with accumulated content
-                setMessages(prev => prev.map(msg =>
-                  msg.id === assistantMessageId
-                    ? { ...msg, content: fullContent }
-                    : msg
-                ));
-              } catch {
-                // Not valid JSON, might be raw text
-                fullContent += line.slice(2);
-                setMessages(prev => prev.map(msg =>
-                  msg.id === assistantMessageId
-                    ? { ...msg, content: fullContent }
-                    : msg
-                ));
-              }
-            }
-          }
+          // Update the assistant message with accumulated content
+          setMessages(prev => prev.map(msg =>
+            msg.id === assistantMessageId
+              ? { ...msg, content: fullContent }
+              : msg
+          ));
         }
       }
 
