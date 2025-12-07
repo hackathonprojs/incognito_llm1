@@ -4,17 +4,24 @@
 @theme {
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* Monad Color Palette */
+  --color-monad-purple: #AD00FF;
+  --color-monad-magenta: #E218FF;
+  --color-monad-cyan: #00F3FF;
+  --color-monad-dark: #000000;
+  --color-monad-card: #111111;
 }
 
 :root {
-  --background: #1a1a1a;
-  --foreground: #ededed;
+  --background: #000000;
+  --foreground: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #1a1a1a;
-    --foreground: #ededed;
+    --background: #000000;
+    --foreground: #ffffff;
   }
 }
 
@@ -23,4 +30,3 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
-

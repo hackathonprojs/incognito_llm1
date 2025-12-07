@@ -13,9 +13,15 @@ const MONAD_EXPLORER_URL = 'https://testnet.monadexplorer.com';
 const SERVER_WALLET_ADDRESS = "0xYourReceivingWalletAddress"; // Placeholder, will rely on user env if possible, but hardcoded for now as it needs to be public
 
 const AVAILABLE_MODELS = [
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Fast & efficient' },
-  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', description: 'Balanced performance' },
-  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: 'Most capable' },
+  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Fast & efficient', disabled: false },
+  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', description: 'Balanced performance', disabled: false },
+  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: 'Most capable', disabled: false },
+  { id: 'gpt-4', name: 'GPT-4', description: 'Coming soon', disabled: true },
+  { id: 'claude-3-opus', name: 'Claude 3 Opus', description: 'Coming soon', disabled: true },
+  { id: 'llama-3', name: 'Llama 3', description: 'Coming soon', disabled: true },
+  { id: 'deepseek-r1', name: 'DeepSeek r1', description: 'Coming soon', disabled: true },
+  { id: 'kimi-k2', name: 'Kimi k2', description: 'Coming soon', disabled: true },
+  { id: 'venice-uncensored', name: 'Venice Uncensored', description: 'Coming soon', disabled: true },
 ];
 
 // Toast notification interface
@@ -284,16 +290,19 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-[#1a1a1a] text-white font-sans selection:bg-[#20b8cd] selection:text-white">
+    <div className="min-h-screen bg-[#000000] text-white font-sans selection:bg-[#AD00FF] selection:text-white">
       {/* Header */}
-      <header className="border-b border-[#3a3a3a] px-6 py-4 sticky top-0 bg-[#1a1a1a]/80 backdrop-blur-md z-10 transition-all duration-300">
+      <header className="border-b border-[#222222] px-6 py-4 sticky top-0 bg-[#000000]/80 backdrop-blur-md z-10 transition-all duration-300">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Zap className="w-6 h-6 text-[#20b8cd] animate-pulse" />
-            <span className="text-xl font-semibold tracking-tight">AI Search</span>
-            <span className="text-xs bg-[#20b8cd]/20 text-[#20b8cd] px-2 py-0.5 rounded border border-[#20b8cd]/30">
-              x402 Powered
-            </span>
+          <div className="flex items-center gap-3">
+            {/* Monad Logo */}
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#AD00FF] to-[#E218FF] flex items-center justify-center font-bold text-white text-sm shadow-lg shadow-[#AD00FF]/30">
+              M
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xl font-bold tracking-tight bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">Private AI</span>
+              <span className="text-[10px] text-gray-500 -mt-1">Powered by x402</span>
+            </div>
           </div>
 
           {/* Model Selector and Wallet Connection */}
@@ -302,11 +311,11 @@ export default function Home() {
               <select
                 value={selectedModel}
                 onChange={(e) => setSelectedModel(e.target.value)}
-                className="appearance-none bg-[#242424] border border-[#3a3a3a] rounded-lg px-4 py-2 pr-8 text-sm focus:outline-none focus:border-[#20b8cd] transition-colors cursor-pointer hover:border-[#555]"
+                className="appearance-none bg-[#111111] border border-[#222222] rounded-lg px-4 py-2 pr-8 text-sm focus:outline-none focus:border-[#AD00FF] transition-colors cursor-pointer hover:border-[#555]"
               >
                 {AVAILABLE_MODELS.map((model) => (
-                  <option key={model.id} value={model.id}>
-                    {model.name}
+                  <option key={model.id} value={model.id} disabled={model.disabled}>
+                    {model.name} {model.disabled ? '(Coming Soon)' : ''}
                   </option>
                 ))}
               </select>
@@ -315,7 +324,7 @@ export default function Home() {
 
             {/* Wallet Connection */}
             {account ? (
-              <div className="flex items-center gap-2 bg-[#242424] px-3 py-2 rounded-lg border border-[#3a3a3a]">
+              <div className="flex items-center gap-2 bg-[#111111] px-3 py-2 rounded-lg border border-[#222222]">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                 <span className="text-sm text-gray-300 font-medium">
                   {account.slice(0, 6)}...{account.slice(-4)}
@@ -325,10 +334,10 @@ export default function Home() {
               <button
                 onClick={connectWallet}
                 disabled={isConnecting}
-                className="flex items-center gap-2 bg-[#20b8cd] hover:bg-[#1aa3b6] px-4 py-2 rounded-lg font-medium transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 shadow-[0_0_15px_rgba(32,184,205,0.3)] hover:shadow-[0_0_20px_rgba(32,184,205,0.5)] text-black"
+                className="flex items-center gap-2 bg-[#AD00FF] hover:bg-[#9600FF] px-4 py-2 rounded-lg font-medium transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 shadow-[0_0_15px_rgba(173,0,255,0.3)] hover:shadow-[0_0_20px_rgba(173,0,255,0.5)] text-black"
               >
                 <WalletIcon className="w-4 h-4" />
-                {isConnecting ? 'Connecting...' : 'Connect Wallet (Web3)'}
+                {isConnecting ? 'Connecting...' : 'Connect Wallet'}
               </button>
             )}
           </div>
@@ -372,14 +381,18 @@ export default function Home() {
         {/* Empty State */}
         {messages.length === 0 && (
           <div className="text-center py-20 animate-in zoom-in-95 duration-500 fade-in">
-            <h1 className="text-5xl font-bold mb-6 bg-gradient-to-r from-white to-gray-500 bg-clip-text text-transparent">
-              What do you want to know?
+            {/* Monad Logo */}
+            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-[#AD00FF] via-[#E218FF] to-[#00F3FF] flex items-center justify-center font-bold text-white text-3xl shadow-2xl shadow-[#AD00FF]/50 animate-pulse">
+              M
+            </div>
+            <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-white via-[#AD00FF] to-[#E218FF] bg-clip-text text-transparent">
+              Ask Private AI Anything
             </h1>
             <p className="text-gray-400 mb-2 text-lg">
-              Pay <span className="text-[#20b8cd] font-semibold">0.001 MON</span> per query on Monad Testnet
+              Powered by <span className="text-[#AD00FF] font-semibold">Monad Testnet</span> • Pay <span className="text-[#00F3FF] font-semibold">0.001 MON</span> per query
             </p>
             <p className="text-sm text-gray-500">
-              Connect your wallet to start searching
+              Connect your wallet to start • Secured by x402 micropayments
             </p>
           </div>
         )}
@@ -390,16 +403,16 @@ export default function Home() {
             <div
               key={message.id}
               className={`p-6 rounded-xl transition-all duration-300 ${message.role === 'user'
-                ? 'bg-[#242424] border border-[#3a3a3a]'
+                ? 'bg-[#111111] border border-[#222222]'
                 : 'bg-transparent'
                 }`}
             >
               <div className="flex items-center gap-3 mb-3">
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${message.role === 'user' ? 'bg-[#20b8cd] text-black' : 'bg-[#3a3a3a] text-white'
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${message.role === 'user' ? 'bg-[#AD00FF] text-black' : 'bg-[#222222] text-white'
                   }`}>
                   {message.role === 'user' ? 'U' : 'AI'}
                 </div>
-                <span className={`text-sm font-medium ${message.role === 'user' ? 'text-[#20b8cd]' : 'text-gray-400'
+                <span className={`text-sm font-medium ${message.role === 'user' ? 'text-[#AD00FF]' : 'text-gray-400'
                   }`}>
                   {message.role === 'user' ? 'You' : 'Gemini'}
                 </span>
@@ -412,7 +425,7 @@ export default function Home() {
           {isLoading && (
             <div className="p-6 rounded-xl bg-transparent animate-pulse">
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-6 h-6 rounded-full bg-[#3a3a3a] text-white flex items-center justify-center text-xs font-bold">AI</div>
+                <div className="w-6 h-6 rounded-full bg-[#222222] text-white flex items-center justify-center text-xs font-bold">AI</div>
                 <span className="text-sm font-medium text-gray-400">Gemini</span>
               </div>
               <div className="space-y-2">
@@ -425,27 +438,27 @@ export default function Home() {
       </main>
 
       {/* Input Area */}
-      <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-[#1a1a1a] via-[#1a1a1a] to-transparent z-20">
+      <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-[#000000] via-[#000000] to-transparent z-20">
         <form onSubmit={handleFormSubmit} className="max-w-4xl mx-auto relative group">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-[#20b8cd] transition-colors" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-[#AD00FF] transition-colors" />
           <input
             type="text"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             placeholder={account ? "Ask anything..." : "Connect wallet to start..."}
             disabled={!account || isLoading}
-            className="w-full bg-[#242424] border border-[#3a3a3a] rounded-xl pl-12 pr-32 py-4 text-lg focus:outline-none focus:border-[#20b8cd] focus:ring-1 focus:ring-[#20b8cd] transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed placeholder:text-gray-600"
+            className="w-full bg-[#111111] border border-[#222222] rounded-xl pl-12 pr-32 py-4 text-lg focus:outline-none focus:border-[#AD00FF] focus:ring-1 focus:ring-[#AD00FF] transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed placeholder:text-gray-600"
           />
           <button
             type="submit"
             disabled={!account || isLoading || !inputValue?.trim()}
-            className="absolute right-2 top-1/2 -translate-y-1/2 bg-[#20b8cd] hover:bg-[#1aa3b6] px-6 py-2 rounded-lg font-medium transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 text-black shadow-md"
+            className="absolute right-2 top-1/2 -translate-y-1/2 bg-[#AD00FF] hover:bg-[#9600FF] px-6 py-2 rounded-lg font-medium transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 text-black shadow-md"
           >
             {isLoading ? 'Thinking...' : 'Search'}
           </button>
         </form>
         <p className="text-center text-xs text-gray-500 mt-3">
-          Each query costs 0.001 MON on Monad Testnet
+          Each query costs <span className="text-[#00F3FF]">0.001 MON</span> on <span className="text-[#AD00FF] font-semibold">Monad Testnet</span> • x402 Micropayments
         </p>
       </div>
 
